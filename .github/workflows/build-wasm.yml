@@ -1,0 +1,54 @@
+name: Build WASM
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wasm-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  EMSCRIPTEN_VERSION: 6.0.9
+
+jobs:
+  build-wasm:
+    name: Website WASM assets
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out preprocessor
+        uses: actions/checkout@v7
+        with:
+          path: cinnamon-preprocessor
+          persist-credentials: false
+
+      - name: Set up Emscripten
+        uses: emscripten-core/setup-emsdk@v16
+        with:
+          version: ${{ env.EMSCRIPTEN_VERSION }}
+          actions-cache-folder: emsdk-cache
+
+      - name: Configure
+        run: >-
+          emcmake cmake
+          -S cinnamon-preprocessor
+          -B build/wasm
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build and stage website assets
+        run: cmake --build build/wasm --parallel --target cinnamon-preprocessor-website-assets
+
+      - name: Upload website assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-wasm-assets
+          path: build/wasm/website-wasm-assets/
+          if-no-files-found: error
+          retention-days: 30
