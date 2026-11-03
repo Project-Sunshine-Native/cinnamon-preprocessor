@@ -151,7 +151,9 @@ static bool tryChapterBatch(PreprocessRunConfig* options,
             break;
         }
 
-        if (!pathJoin(options->outputDir, chapterFolderName, chapterOptions.outputDir,
+        if (!pathCopy(chapterOptions.sharedOutputDir, sizeof(chapterOptions.sharedOutputDir),
+                options->outputDir) ||
+            !pathJoin(options->outputDir, chapterFolderName, chapterOptions.outputDir,
                 sizeof(chapterOptions.outputDir))) {
             free(chapterDir);
             ok = false;

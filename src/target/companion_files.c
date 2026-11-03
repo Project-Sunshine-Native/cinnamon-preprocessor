@@ -492,7 +492,8 @@ static bool copyExternalOggFiles(const PreprocessRunConfig* options) {
 
     RuntimeFileSync sync = {
         .srcRoot = installRoot,
-        .dstRoot = options->outputDir,
+        .dstRoot = strNotEmpty(options->sharedOutputDir) ? options->sharedOutputDir
+                                                       : options->outputDir,
         .extension = ".ogg",
         .profiles = options->gameProfiles,
         .skipChapterDirs = true,
@@ -501,6 +502,7 @@ static bool copyExternalOggFiles(const PreprocessRunConfig* options) {
     bool ok = sameRoot || syncRuntimeFilesDir(&sync, "");
     if (ok) {
         sync.srcRoot = inputDir;
+        sync.dstRoot = options->outputDir;
         ok = syncRuntimeFilesDir(&sync, "");
     }
     if (ok && (sync.updated > 0u || sync.skipped > 0u)) {

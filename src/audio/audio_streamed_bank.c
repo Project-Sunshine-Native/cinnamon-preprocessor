@@ -25,13 +25,11 @@ static bool copyRelativeOggPath(const char* value, char* out, size_t outSize) {
     return true;
 }
 
-static bool copyOutputRelativePath(
-    const char* outputDir, const char* path, char* out, size_t outSize) {
-    size_t rootLength = strlen(outputDir);
-    while (rootLength > 0u &&
-        (outputDir[rootLength - 1u] == '/' || outputDir[rootLength - 1u] == '\\'))
+static bool copyRelativePath(const char* root, const char* path, char* out, size_t outSize) {
+    size_t rootLength = strlen(root);
+    while (rootLength > 0u && (root[rootLength - 1u] == '/' || root[rootLength - 1u] == '\\'))
         --rootLength;
-    if (strncmp(outputDir, path, rootLength) != 0 ||
+    if (strncmp(root, path, rootLength) != 0 ||
         (path[rootLength] != '/' && path[rootLength] != '\\'))
         return false;
     const char* relative = path + rootLength + 1u;
@@ -44,11 +42,25 @@ static bool copyOutputRelativePath(
 static uint8_t* makeExternalPathRecord(const PreprocessRunConfig* options, const Sound* sound,
     const char* sourcePath, uint32_t* outSize) {
     char relative[PREPROCESS_PATH_MAX];
+    char sourceRelative[PREPROCESS_PATH_MAX];
+    const char* outputDir = options->outputDir;
+    const char* prefix = "../";
+    char* sourceRoot = pathDupParent(options->inputPath);
+    bool haveRelative = sourceRoot != NULL &&
+        copyRelativePath(sourceRoot, sourcePath, sourceRelative, sizeof(sourceRelative));
+    if (!haveRelative) {
+        free(sourceRoot);
+        sourceRoot = resolveInstallRoot(options->gameProfiles, options->inputPath);
+        haveRelative = sourceRoot != NULL &&
+            copyRelativePath(sourceRoot, sourcePath, sourceRelative, sizeof(sourceRelative));
+        if (strNotEmpty(options->sharedOutputDir)) {
+            outputDir = options->sharedOutputDir;
+            prefix = "../../";
+        }
+    }
+    free(sourceRoot);
+    haveRelative = haveRelative && copyRelativeOggPath(sourceRelative, relative, sizeof(relative));
     const char* sourceName = pathBaseName(sourcePath);
-    char* existing = fsFindFile(options->outputDir, sourceName);
-    bool haveRelative = existing != NULL && fsFilesEqual(sourcePath, existing) &&
-        copyOutputRelativePath(options->outputDir, existing, relative, sizeof(relative));
-    free(existing);
     if (!haveRelative) {
         haveRelative = copyRelativeOggPath(sound->file, relative, sizeof(relative));
         if (!haveRelative)
@@ -56,7 +68,7 @@ static uint8_t* makeExternalPathRecord(const PreprocessRunConfig* options, const
     }
     if (!haveRelative) return NULL;
 
-    char* destination = pathJoinAlloc(options->outputDir, relative);
+    char* destination = pathJoinAlloc(outputDir, relative);
     if (destination == NULL) return NULL;
     bool ok = fsFileExists(destination) && fsFilesEqual(sourcePath, destination);
     if (!ok) ok = fsCopyAtomic(sourcePath, destination);
@@ -64,11 +76,12 @@ static uint8_t* makeExternalPathRecord(const PreprocessRunConfig* options, const
     if (!ok) return NULL;
 
     size_t relativeLength = strlen(relative);
-    if (relativeLength > UINT32_MAX - 3u) return NULL;
-    *outSize = (uint32_t) relativeLength + 3u;
+    size_t prefixLength = strlen(prefix);
+    if (relativeLength > UINT32_MAX - prefixLength) return NULL;
+    *outSize = (uint32_t) (relativeLength + prefixLength);
     uint8_t* record = safeMalloc(*outSize);
-    memcpy(record, "../", 3u);
-    memcpy(record + 3u, relative, relativeLength);
+    memcpy(record, prefix, prefixLength);
+    memcpy(record + prefixLength, relative, relativeLength);
     return record;
 }
 

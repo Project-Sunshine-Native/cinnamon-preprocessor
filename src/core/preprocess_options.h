@@ -53,6 +53,7 @@ struct PreprocessRunConfig {
     PreprocessUserOptions user;
     char inputPath[PREPROCESS_PATH_MAX];
     char outputDir[PREPROCESS_PATH_MAX];
+    char sharedOutputDir[PREPROCESS_PATH_MAX];
     char debugOutputDir[PREPROCESS_SEARCH_PATH_MAX];
     char toolDir[PREPROCESS_PATH_MAX];
     const struct PreprocessGameProfileConfig* gameProfiles;
