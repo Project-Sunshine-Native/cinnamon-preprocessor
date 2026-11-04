@@ -12,5 +12,7 @@ cmake --build build/native --parallel
 build/native/cinnamon-preprocessor /path/to/game --target target --output output
 ```
 
+For 3DS, set the target to ```3ds``` and your output to the SD Card's root. the program will copy all needed files to your apps directory under ```sdmc:3ds/cinnamon/<game>```
+
 Use `--help` for conversion options.
 
