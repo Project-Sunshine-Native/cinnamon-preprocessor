@@ -26,6 +26,7 @@ static bool runSingle(
             .parseBgnd = true,
             .parseFont = true,
             .parseRoom = true,
+            .parseTgin = true,
             .parseTpag = true,
             .parseStrg = true,
             .parseTxtr = true,

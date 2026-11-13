@@ -183,6 +183,14 @@ static char* resolveTexturePath(const PreprocessRunConfig* options, const DataWi
     char* inputDir = pathDupParent(options->inputPath);
     if (inputDir == NULL) return NULL;
 
+    if (texture->externalPath != NULL) {
+        char* resolved = tryRelativeTexture(inputDir, texture, texture->externalPath);
+        if (resolved != NULL) {
+            free(inputDir);
+            return resolved;
+        }
+    }
+
     char name[96];
     const char* patterns[] = {
         "texture_%lu.png",
