@@ -36,6 +36,7 @@ typedef struct {
     bool parseTmln;
     bool parseObjt;
     bool parseRoom;
+    bool parseTgin;
     bool parseTpag;
     bool parseCode;
     bool parseVari;
@@ -855,6 +856,20 @@ typedef struct {
     const char** strings; // pointers into strgBuffer
 } Strg;
 
+// ===[ TGIN - Texture Groups ]===
+typedef struct {
+    bool present;
+    const char* name;
+    const char* directory;
+    uint32_t texturePageCount;
+    uint32_t* texturePages;
+} TextureGroup;
+
+typedef struct {
+    uint32_t count;
+    TextureGroup* textureGroups;
+} Tgin;
+
 // ===[ TXTR - Embedded Textures ]===
 typedef struct {
     bool present;
@@ -932,8 +947,8 @@ struct DataWin {
     Vari vari;
     Func func;
     Strg strg;
+    Tgin tgin;
     Txtr txtr;
-    uint32_t tginOffset;
     Audo audo;
 
     DetectedFormat detectedFormat;
