@@ -6,6 +6,7 @@
 #include "common/path_utils.h"
 #include "core/preprocess_config.h"
 #include "target/companion_files.h"
+#include "target/exe_icon.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -53,6 +54,7 @@ static bool runSingle(
 
     progressPhase(PREPROCESS_PHASE_COMPANIONS);
     bool ok = copyCompanions(options, gameProfile);
+    if (ok) ok = extractGameIcon(options, dataWin);
     progressPhase(PREPROCESS_PHASE_TEXTURES);
     if (ok) ok = texConvert(options, dataWin);
     progressPhase(PREPROCESS_PHASE_AUDIO);

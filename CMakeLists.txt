@@ -64,6 +64,7 @@ add_library(cinnamon_core STATIC
     src/texture/texture_pages.c
     src/texture/texture_pixels.c
     src/target/companion_files.c
+    src/target/exe_icon.c
     src/target/preprocess_target.c
     src/target/target_paths.c
     src/common/byteio.c
