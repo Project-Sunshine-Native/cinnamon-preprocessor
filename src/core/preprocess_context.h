@@ -24,6 +24,7 @@ typedef struct {
     void (*phase)(PreprocessPhase phase, void* userData);
     void (*texturePage)(uint32_t pageIndex, uint32_t pageCount, void* userData);
     void (*room)(int32_t roomIndex, void* userData);
+    void (*game)(uint32_t gameIndex, uint32_t gameCount, const char* name, void* userData);
     void* userData;
 } PreprocessProgressCallbacks;
 
@@ -33,5 +34,6 @@ void progressReset(void);
 void progressPhase(PreprocessPhase phase);
 void progressPage(uint32_t pageIndex, uint32_t pageCount);
 void progressRoom(int32_t roomIndex);
+void progressGame(uint32_t gameIndex, uint32_t gameCount, const char* name);
 
 #endif

@@ -258,6 +258,7 @@ TileLookupKey* collectLegacyTiles(DataWin* dataWin) {
             if (layer->tilesData != NULL) totalTileLayers++;
         }
         collectRoomTiles(&dataWin->room.rooms[i], dataWin, &keys, &dedupe);
+        if (dataWin->lazyLoadRooms && !room->eagerlyLoaded) DataWin_freeRoomPayload(room);
     }
     collectBackgroundTiles(dataWin, &keys, &dedupe);
     fprintf(stderr,

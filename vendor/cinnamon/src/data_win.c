@@ -801,7 +801,8 @@ static void parseSpriteMessages(BinaryReader* reader, DataWin* dw, Sprite* spr, 
     BinaryReader_seek(reader, savedPos);
 }
 
-static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPreciseMasksForNonPreciseSprites) {
+static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPreciseMasksForNonPreciseSprites,
+    bool skipLoadingSpriteMasks) {
     Sprt* s = &dw->sprt;
     uint32_t count;
     uint32_t* ptrs = readPointerTable(reader, &count);
@@ -912,7 +913,7 @@ static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPrecise
             uint32_t bytesPerRow = (spr->maskWidth + 7) / 8;
             uint32_t bytesPerMask = bytesPerRow * spr->maskHeight;
 
-            if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {
+            if (!skipLoadingSpriteMasks && (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites)) {
                 spr->masks = (uint8_t **)safeMalloc(maskDataCount * sizeof(uint8_t*));
                 if (dw->mappedFile) {
                     repeat(maskDataCount, j) {
@@ -3031,7 +3032,8 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
         } else if (options.parseAgrp && memcmp(chunkName, "AGRP", 4) == 0) {
             parseAGRP(&reader, dw);
         } else if (options.parseSprt && memcmp(chunkName, "SPRT", 4) == 0) {
-            parseSPRT(&reader, dw, options.skipLoadingPreciseMasksForNonPreciseSprites);
+            parseSPRT(&reader, dw, options.skipLoadingPreciseMasksForNonPreciseSprites,
+                options.skipLoadingSpriteMasks);
         } else if (options.parseBgnd && memcmp(chunkName, "BGND", 4) == 0) {
             parseBGND(&reader, dw, chunkEnd);
         } else if (options.parsePath && memcmp(chunkName, "PATH", 4) == 0) {

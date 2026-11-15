@@ -172,7 +172,7 @@ static uint8_t CINNAMON_AUDIO_CONVERT_OPTIMIZE_FAST estimateShiftFromSamples(
 
 static void CINNAMON_AUDIO_CONVERT_OPTIMIZE_FAST encodeFrameSamples(
     const int16_t samples[CINNAMON_DSP_SAMPLES_PER_FRAME], const DspPredictorPair* predictor,
-    uint8_t shift, DspHistory history, DspFrame* out) {
+    uint8_t shift, DspHistory history, uint64_t errorLimit, DspFrame* out) {
     int16_t hist1 = history.hist1;
     int16_t hist2 = history.hist2;
     uint8_t frame[CINNAMON_DSP_BYTES_PER_FRAME];
@@ -192,6 +192,10 @@ static void CINNAMON_AUDIO_CONVERT_OPTIMIZE_FAST encodeFrameSamples(
         int error = target - decoded;
         int64_t wideError = (int64_t) error;
         totalError += (uint64_t) (wideError * wideError);
+        if (totalError >= errorLimit) {
+            out->error = totalError;
+            return;
+        }
 
         hist2 = hist1;
         hist1 = (int16_t) decoded;
@@ -222,8 +226,13 @@ static void encodeBestFrameSamples(const int16_t samples[CINNAMON_DSP_SAMPLES_PE
             : CINNAMON_DSP_MAX_SHIFT;
         for (uint8_t shift = shiftStart; shift <= shiftEnd; ++shift) {
             DspFrame frame;
-            encodeFrameSamples(samples, predictor, shift, *history, &frame);
+            encodeFrameSamples(samples, predictor, shift, *history, best.error, &frame);
             if (frame.error < best.error) best = frame;
+            if (best.error == 0u) {
+                memcpy(outFrame, best.data, sizeof(best.data));
+                *history = best.history;
+                return;
+            }
         }
     }
     memcpy(outFrame, best.data, sizeof(best.data));

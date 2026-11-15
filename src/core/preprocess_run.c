@@ -18,8 +18,7 @@ static bool runSingle(
     progressPhase(PREPROCESS_PHASE_PARSE_DATA);
     DataWin* dataWin = DataWin_parse(options->inputPath,
         (DataWinParserOptions){
-            // Texture metadata can reference TGIN and other chunks outside TXTR.
-            .loadType = DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME,
+            .loadType = DATAWINLOADTYPE_STREAM_FILE,
             .parseGen8 = true,
             .parseSond = true,
             .parseAgrp = true,
@@ -32,11 +31,10 @@ static bool runSingle(
             .parseStrg = true,
             .parseTxtr = true,
             .parseAudo = true,
-#if defined(__EMSCRIPTEN__)
+            .lazyLoadRooms = true,
             .lazyLoadTextures = true,
             .lazyLoadAudio = true,
-#endif
-            .skipLoadingPreciseMasksForNonPreciseSprites = true,
+            .skipLoadingSpriteMasks = true,
         });
     if (dataWin == NULL) {
         fprintf(stderr, "Failed to parse %s\n", options->inputPath);
@@ -115,6 +113,8 @@ static bool tryChapterBatch(PreprocessRunConfig* options,
         profileLabel(batchProfile), (long) foundChapterCount);
 
     bool ok = true;
+    uint32_t gameIndex = 0u;
+    uint32_t gameCount = (uint32_t) foundChapterCount + (hasRootDataWin ? 1u : 0u);
     if (hasRootDataWin) {
         PreprocessRunConfig rootOptions = *options;
         if (!pathCopy(rootOptions.inputPath, sizeof(rootOptions.inputPath), rootDataWin)) {
@@ -124,6 +124,7 @@ static bool tryChapterBatch(PreprocessRunConfig* options,
         if (ok) {
             fprintf(stderr, "cinnamon-preprocessor: preprocessing root %s -> %s\n",
                 rootOptions.inputPath, rootOptions.outputDir);
+            progressGame(gameIndex++, gameCount, "game root");
             ok = runSingle(&rootOptions, gameProfiles);
         }
     }
@@ -171,6 +172,7 @@ static bool tryChapterBatch(PreprocessRunConfig* options,
 
         fprintf(stderr, "cinnamon-preprocessor: preprocessing chapter %ld %s -> %s\n",
             (long) chapter, chapterOptions.inputPath, chapterOptions.outputDir);
+        progressGame(gameIndex++, gameCount, chapterFolderName);
         ok = runSingle(&chapterOptions, gameProfiles);
         free(chapterDir);
     }
@@ -183,5 +185,7 @@ static bool tryChapterBatch(PreprocessRunConfig* options,
 bool runGame(PreprocessRunConfig* options, const PreprocessGameProfileConfig* gameProfiles) {
     bool batchHandled = false;
     bool ok = tryChapterBatch(options, gameProfiles, &batchHandled);
-    return batchHandled ? ok : runSingle(options, gameProfiles);
+    if (batchHandled) return ok;
+    progressGame(0u, 1u, NULL);
+    return runSingle(options, gameProfiles);
 }

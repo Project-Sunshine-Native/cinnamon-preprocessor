@@ -479,6 +479,9 @@ bool texWriteAtlas(const PreprocessRunConfig* options, const TexturePreprocessPi
             fprintf(stderr, "Failed to append packed atlas page: %s\n", pagePath);
             goto cleanup;
         }
+#if defined(__EMSCRIPTEN__)
+        if (remove(pagePath) != 0) goto cleanup;
+#endif
     }
 
     CinnamonAtlasContainerBlock blocks[2];
@@ -631,7 +634,7 @@ static CinnamonRoomManifestTileRef makeRoomManifestTileRef(
         .srcW = (uint16_t) tile->width,
         .srcH = (uint16_t) tile->height,
     };
-    ptrdiff_t index = hmgeti(tileEntryMap, key);
+    ptrdiff_t index = tileEntryMap != NULL ? hmgeti(tileEntryMap, key) : -1;
     if (index >= 0) ref.tileEntryIndex = tileEntryMap[index].value;
     return ref;
 }
@@ -685,7 +688,8 @@ static void markRoomReferencedPages(
     TileRequestMap* roomTileDedupe = NULL;
     collectRoomTiles(room, (DataWin*) context->dataWin, &roomTileKeys, &roomTileDedupe);
     preprocessRepeat(arrlen(roomTileKeys), tileKeyIndex) {
-        ptrdiff_t packedTileIndex = hmgeti(context->tileEntryMap, roomTileKeys[tileKeyIndex]);
+        ptrdiff_t packedTileIndex = context->tileEntryMap != NULL
+            ? hmgeti(context->tileEntryMap, roomTileKeys[tileKeyIndex]) : -1;
         if (packedTileIndex < 0) continue;
         markRoomTilePages(&context->packedTileEntries[context->tileEntryMap[packedTileIndex].value],
             context->totalPageCount, context->fragments, seenPages);
@@ -744,6 +748,7 @@ static void appendRoomManifestEntry(RoomManifestBuildContext* context, uint32_t 
     };
     arrput(context->entries, entry);
     free(seenPages);
+    if (context->dataWin->lazyLoadRooms && !room->eagerlyLoaded) DataWin_freeRoomPayload(room);
 }
 
 static bool writeRoomManifestFile(const char* manifestPath, const DataWin* dataWin,

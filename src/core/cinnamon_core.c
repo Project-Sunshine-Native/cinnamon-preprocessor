@@ -3,12 +3,22 @@
 #include "preprocess_config.h"
 #include "preprocess_run.h"
 #include "preprocess_staging.h"
+#include "target/companion_files.h"
 
 bool processGame(PreprocessRunConfig* options, const PreprocessGameProfileConfig* gameProfiles) {
-    PreprocessStaging staging = {0};
     progressReset();
     if (!resolveRunPaths(options, gameProfiles)) return false;
 
+#if defined(__EMSCRIPTEN__)
+    progressPhase(PREPROCESS_PHASE_OUTPUT_DIRS);
+    bool ok = ensureOutputDirs(options->outputDir) && runGame(options, gameProfiles);
+    if (ok) {
+        progressPhase(PREPROCESS_PHASE_INSTALL);
+        ok = copyWiiCompanions(options, options->outputDir);
+    }
+    return ok;
+#else
+    PreprocessStaging staging = {0};
     bool ok = prepareStaging(&staging, options);
     if (ok) ok = runGame(options, gameProfiles);
     if (ok) ok = installStaging(&staging, options);
@@ -16,4 +26,5 @@ bool processGame(PreprocessRunConfig* options, const PreprocessGameProfileConfig
     if (staging.prepared)
         pathCopy(options->outputDir, sizeof(options->outputDir), staging.finalOutputDir);
     return ok;
+#endif
 }

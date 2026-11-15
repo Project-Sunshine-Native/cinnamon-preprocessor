@@ -24,3 +24,8 @@ void progressPage(uint32_t pageIndex, uint32_t pageCount) {
 void progressRoom(int32_t roomIndex) {
     if (s_callbacks.room != NULL) s_callbacks.room(roomIndex, s_callbacks.userData);
 }
+
+void progressGame(uint32_t gameIndex, uint32_t gameCount, const char* name) {
+    if (s_callbacks.game != NULL)
+        s_callbacks.game(gameIndex, gameCount, name, s_callbacks.userData);
+}

@@ -193,6 +193,7 @@ bool atlasBuildAffinity(DataWin* dataWin, const TileLookupKey* tileRequests,
         }
         arrfree(roomTileKeys);
         hmfree(roomTileDedupe);
+        if (dataWin->lazyLoadRooms && !room->eagerlyLoaded) DataWin_freeRoomPayload(room);
     }
 
     hmfree(tileRequestMap);

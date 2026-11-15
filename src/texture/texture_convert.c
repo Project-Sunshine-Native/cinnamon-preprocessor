@@ -666,6 +666,11 @@ static bool writeTextureOutputs(TextureConversionContext* ctx) {
         .tpagHash = texHashTpag(ctx->dataWin),
     };
     bool ok = texFlushPages(ctx->options, ctx->pipeline, &ctx->atlas);
+    if (ok) {
+        atlasFreePages(ctx->atlas.packedPages, ctx->atlas.packedPageCount);
+        ctx->atlas.packedPages = NULL;
+        ctx->atlas.packedPageCount = 0u;
+    }
     if (ok) ok = texWriteRoomManifest(ctx->options, ctx->dataWin, &atlas);
     if (ok)
         ok = texBuildBindings(

@@ -16,7 +16,8 @@ typedef struct DataWin DataWin;
 typedef enum {
     DATAWINLOADTYPE_LOAD_PER_CHUNK,
     DATAWINLOADTYPE_LOAD_IN_MEMORY_AHEAD_OF_TIME,
-    DATAWINLOADTYPE_MAP_FILE
+    DATAWINLOADTYPE_MAP_FILE,
+    DATAWINLOADTYPE_STREAM_FILE
 } DataWinLoadType;
 
 typedef struct {
@@ -46,6 +47,7 @@ typedef struct {
     bool parseAudo;
     // If true, precise masks will be skipped when the sprite does not have a precise state set
     bool skipLoadingPreciseMasksForNonPreciseSprites;
+    bool skipLoadingSpriteMasks;
 
     // If true, Room payloads (backgrounds, views, gameObjects, tiles, layers) are parsed on demand via DataWin_loadRoomPayload during gameplay.
     bool lazyLoadRooms;

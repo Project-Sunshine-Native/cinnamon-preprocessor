@@ -4,12 +4,17 @@
 #include "common/string_utils.h"
 
 typedef struct {
-    char name[256];
+    char* key;
     char path[PREPROCESS_TEMP_PATH_MAX];
 } ExternalAudioFileIndexEntry;
 
-static ExternalAudioFileIndexEntry* gExternalAudioFileIndex = NULL;
-static char gExternalAudioFileIndexRoot[PREPROCESS_PATH_MAX] = "";
+typedef struct {
+    char root[PREPROCESS_PATH_MAX];
+    ExternalAudioFileIndexEntry* files;
+    bool complete;
+} ExternalAudioFileIndex;
+
+static ExternalAudioFileIndex* gExternalAudioIndexes = NULL;
 static const char* const AUDIO_EXTENSIONS[] = {".ogg", ".wav", ".wdsp", ".mp3"};
 
 static bool hasAudioExtension(const char* path) {
@@ -43,26 +48,38 @@ static char* resolveRelativeSound(
 }
 
 void audioClearIndex(void) {
-    arrfree(gExternalAudioFileIndex);
-    gExternalAudioFileIndex = NULL;
-    gExternalAudioFileIndexRoot[0] = '\0';
+    preprocessRepeat(arrlen(gExternalAudioIndexes), i) shfree(gExternalAudioIndexes[i].files);
+    arrfree(gExternalAudioIndexes);
+    gExternalAudioIndexes = NULL;
 }
 
-static bool indexAudioFile(const char* path) {
+static bool audioNameKey(const char* name, char* out, size_t capacity) {
+    if (!pathCopy(out, capacity, name)) return false;
+    for (char* c = out; *c != '\0'; ++c) {
+        if (*c >= 'A' && *c <= 'Z') *c = (char) (*c - 'A' + 'a');
+    }
+    return true;
+}
+
+static bool indexAudioFile(ExternalAudioFileIndex* index, const char* path) {
     const char* name = pathBaseName(path);
     if (name == NULL || !hasAudioExtension(name)) return true;
 
     ExternalAudioFileIndexEntry entry;
     memset(&entry, 0, sizeof(entry));
-    if (!pathCopy(entry.name, sizeof(entry.name), name) ||
+    char key[256];
+    if (!audioNameKey(name, key, sizeof(key)) ||
         !pathCopy(entry.path, sizeof(entry.path), path)) {
         return false;
     }
-    arrput(gExternalAudioFileIndex, entry);
+    if (shgeti(index->files, key) < 0) {
+        entry.key = key;
+        shputs(index->files, entry);
+    }
     return true;
 }
 
-static bool indexExternalAudioDir(const char* srcDir) {
+static bool indexExternalAudioDir(ExternalAudioFileIndex* index, const char* srcDir) {
     if (srcDir == NULL || !fsDirExists(srcDir)) return true;
 
 #if PREPROCESS_HOST_WINDOWS
@@ -83,11 +100,11 @@ static bool indexExternalAudioDir(const char* srcDir) {
             break;
         }
         if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
-            if (!indexExternalAudioDir(childPath)) {
+            if (!indexExternalAudioDir(index, childPath)) {
                 ok = false;
                 break;
             }
-        } else if (!indexAudioFile(childPath)) {
+        } else if (!indexAudioFile(index, childPath)) {
             ok = false;
             break;
         }
@@ -107,9 +124,9 @@ static bool indexExternalAudioDir(const char* srcDir) {
 
         char* childPath = pathJoinAlloc(srcDir, name);
         if (fsDirExists(childPath)) {
-            ok = indexExternalAudioDir(childPath);
+            ok = indexExternalAudioDir(index, childPath);
         } else {
-            ok = indexAudioFile(childPath);
+            ok = indexAudioFile(index, childPath);
         }
         free(childPath);
         if (!ok) break;
@@ -120,31 +137,32 @@ static bool indexExternalAudioDir(const char* srcDir) {
 #endif
 }
 
-static bool ensureAudioIndex(const char* inputDir) {
-    if (!strNotEmpty(inputDir)) return false;
-    if (gExternalAudioFileIndexRoot[0] != '\0' &&
-        strcmp(gExternalAudioFileIndexRoot, inputDir) == 0)
-        return true;
-
-    audioClearIndex();
-    if (!pathCopy(gExternalAudioFileIndexRoot, sizeof(gExternalAudioFileIndexRoot), inputDir)) {
-        return false;
+static ExternalAudioFileIndex* ensureAudioIndex(const char* inputDir) {
+    if (!strNotEmpty(inputDir)) return NULL;
+    preprocessRepeat(arrlen(gExternalAudioIndexes), i) {
+        if (strcmp(gExternalAudioIndexes[i].root, inputDir) == 0)
+            return &gExternalAudioIndexes[i];
     }
-    bool ok = indexExternalAudioDir(inputDir);
+    ExternalAudioFileIndex index = {0};
+    if (!pathCopy(index.root, sizeof(index.root), inputDir)) return NULL;
+    sh_new_strdup(index.files);
+    index.complete = indexExternalAudioDir(&index, inputDir);
+    arrput(gExternalAudioIndexes, index);
     fprintf(stderr, "cinnamon-preprocessor: indexed %lu external audio files under %s\n",
-        (unsigned long) arrlen(gExternalAudioFileIndex), inputDir);
-    return ok;
+        (unsigned long) shlen(index.files), inputDir);
+    return &gExternalAudioIndexes[arrlen(gExternalAudioIndexes) - 1u];
 }
 
-static char* findIndexedSound(const char* inputDir, const char* fileName) {
+static char* findIndexedSound(const char* inputDir, const char* fileName, bool* outComplete) {
+    *outComplete = false;
     if (!strNotEmpty(inputDir) || !strNotEmpty(fileName)) return NULL;
-    if (!ensureAudioIndex(inputDir)) return NULL;
-
-    preprocessRepeat(arrlen(gExternalAudioFileIndex), i) {
-        if (strEqualNoCase(gExternalAudioFileIndex[i].name, fileName)) {
-            return safeStrdup(gExternalAudioFileIndex[i].path);
-        }
-    }
+    ExternalAudioFileIndex* index = ensureAudioIndex(inputDir);
+    if (index == NULL) return NULL;
+    *outComplete = index->complete;
+    char key[256];
+    if (!audioNameKey(fileName, key, sizeof(key))) { *outComplete = false; return NULL; }
+    ptrdiff_t found = shgeti(index->files, key);
+    if (found >= 0) return safeStrdup(index->files[found].path);
 
     if (hasAudioExtension(fileName)) return NULL;
     preprocessRepeat(sizeof(AUDIO_EXTENSIONS) / sizeof(AUDIO_EXTENSIONS[0]), extIndex) {
@@ -152,11 +170,9 @@ static char* findIndexedSound(const char* inputDir, const char* fileName) {
         if (!pathWithSuffix(fileName, AUDIO_EXTENSIONS[extIndex], targetName, sizeof(targetName))) {
             continue;
         }
-        preprocessRepeat(arrlen(gExternalAudioFileIndex), i) {
-            if (strEqualNoCase(gExternalAudioFileIndex[i].name, targetName)) {
-                return safeStrdup(gExternalAudioFileIndex[i].path);
-            }
-        }
+        if (!audioNameKey(targetName, key, sizeof(key))) continue;
+        found = shgeti(index->files, key);
+        if (found >= 0) return safeStrdup(index->files[found].path);
     }
     return NULL;
 }
@@ -214,8 +230,9 @@ char* audioFindSource(const PreprocessRunConfig* options, const Sound* sound) {
 
         const char* fileNameForSearch = pathBaseName(base);
         preprocessRepeat(searchRootCount, rootIndex) {
-            resolved = findIndexedSound(searchRoots[rootIndex], fileNameForSearch);
-            if (resolved == NULL)
+            bool complete = false;
+            resolved = findIndexedSound(searchRoots[rootIndex], fileNameForSearch, &complete);
+            if (resolved == NULL && !complete)
                 resolved = findExternalSound(searchRoots[rootIndex], fileNameForSearch);
             if (resolved != NULL) break;
         }
@@ -276,7 +293,9 @@ static DataWin* getAudioGroupData(ExternalAudioGroupCacheEntry** inOutCache,
 
     DataWin* groupDataWin = DataWin_parse(groupPath,
         (DataWinParserOptions){
+            .loadType = DATAWINLOADTYPE_STREAM_FILE,
             .parseAudo = true,
+            .lazyLoadAudio = true,
         });
     if (groupDataWin == NULL) {
         fprintf(stderr, "Failed to parse %s for audio group %ld\n", groupPath, (long) groupIndex);

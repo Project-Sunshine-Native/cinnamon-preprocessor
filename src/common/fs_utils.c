@@ -11,6 +11,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+
+EM_JS(int, tryBrowserCopyFile, (const char* source, const char* destination), {
+    const copy = Module['preprocessCopyFile'];
+    return copy && copy(UTF8ToString(source), UTF8ToString(destination)) ? 1 : 0;
+});
+
+EM_JS(int, browserFilesShareSource, (const char* a, const char* b), {
+    const same = Module['preprocessFilesEqual'];
+    return same && same(UTF8ToString(a), UTF8ToString(b)) ? 1 : 0;
+});
+#endif
+
 #if PREPROCESS_HOST_WINDOWS
 #include <windows.h>
 #include <direct.h>
@@ -332,6 +346,9 @@ bool fsProgramDir(const char* argv0, char* outDir, size_t outDirSize) {
 
 bool fsFilesEqual(const char* pathA, const char* pathB) {
     if (pathA == NULL || pathB == NULL) return false;
+#if defined(__EMSCRIPTEN__)
+    if (browserFilesShareSource(pathA, pathB)) return true;
+#endif
     FILE* fileA = fopen(pathA, "rb");
     FILE* fileB = fopen(pathB, "rb");
     if (fileA == NULL || fileB == NULL) {
@@ -376,6 +393,9 @@ bool fsCopyFile(const char* srcPath, const char* dstPath) {
     free(parentDir);
     if (!ok) return false;
 
+#if defined(__EMSCRIPTEN__)
+    if (tryBrowserCopyFile(srcPath, dstPath)) return true;
+#endif
     FILE* src = fopen(srcPath, "rb");
     if (src == NULL) return false;
     FILE* dst = fopen(dstPath, "wb");
